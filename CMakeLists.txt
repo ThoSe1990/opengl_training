@@ -28,6 +28,7 @@ set(target hello_openGL)
 add_executable( ${target} 
 ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp 
 )
+target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_link_libraries(${target} ${CONAN_LIBS})
 
