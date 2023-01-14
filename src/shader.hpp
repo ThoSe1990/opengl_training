@@ -26,6 +26,10 @@ public:
     {
         return m_model;
     }
+    GLuint get_view_location()
+    {
+        return m_view;
+    }
 
     void use()
     {
@@ -76,6 +80,7 @@ private:
 
         m_model = glGetUniformLocation(m_id, "model");
         m_projection = glGetUniformLocation(m_id, "projection");
+        m_view = glGetUniformLocation(m_id, "view");
     }
 
     void add(GLuint program, const char* shader_code, GLenum type)
@@ -108,6 +113,7 @@ private:
     GLuint m_id{0};
     GLuint m_projection{0};
     GLuint m_model{0};
+    GLuint m_view{0};
 };
 
 
