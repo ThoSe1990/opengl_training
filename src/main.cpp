@@ -18,6 +18,7 @@
 #include "camera.hpp"
 #include "texture.hpp"
 #include "light.hpp"
+#include "material.hpp"
 
 const float to_radians = 3.14159265f / 180.0f;
 
@@ -75,7 +76,6 @@ void calculate_average_normals(
 
 
 
-
 void create_objects()
 {
 	unsigned int indices[] = {
@@ -88,9 +88,9 @@ void create_objects()
 	GLfloat vertices[] = {
 	// introducing u and s for textures
 	//    x       y     z       u     v       nx    ny    nz
-		-1.0f, -1.0f, 0.0f,    0.0f, 0.0f,    0.0f, 0.0f, 0.0f,
-		 0.0f, -1.0f, 1.0f,    0.5f, 0.0f,    0.0f, 0.0f, 0.0f,
-		 1.0f, -1.0f, 0.0f,    1.0f, 0.0f,    0.0f, 0.0f, 0.0f,
+		-1.0f, -1.0f, -0.6f,    0.0f, 0.0f,    0.0f, 0.0f, 0.0f,
+		 0.0f, -1.0f,  1.0f,    0.5f, 0.0f,    0.0f, 0.0f, 0.0f,
+		 1.0f, -1.0f, -0.6f,    1.0f, 0.0f,    0.0f, 0.0f, 0.0f,
 		 0.0f,  1.0f,  0.0f,   0.5f, 1.0f,    0.0f, 0.0f, 0.0f
 	};
 
@@ -107,10 +107,13 @@ void create_shaders()
 
 int main()
 {
-	window main_window(800, 600);
+	window main_window(1366, 768);
 	main_window.initialize();
 
 	camera c(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 90.0f, 0.0f, 5.0f, 0.1f);
+
+	material shiny_material(1.0f, 32);
+	material dull_material(0.3f, 4);
 
 	texture brick("textures/brick.png");
 	brick.load();
@@ -118,8 +121,8 @@ int main()
 	dirt.load();
 
 	light main_light(
-		1.0f, 1.0f, 1.0f, 0.2f, 
-		2.0f, -1.0f, -2.0f, 1.0f
+		1.0f, 1.0f, 1.0f, 0.1f, 
+		2.0f, -1.0f, -2.0f, 0.1f
 	);
 
 	create_objects();
@@ -130,8 +133,11 @@ int main()
 	GLuint uniform_view = 0;
 	GLuint uniform_ambient_color = 0;
 	GLuint uniform_ambient_intensity = 0;
-	GLuint unform_diffuse_direction = 0;
-	GLuint unform_diffuse_intensity = 0;
+	GLuint uniform_diffuse_direction = 0;
+	GLuint uniform_diffuse_intensity = 0;
+	GLuint uinform_eye_position = 0;
+	GLuint uniform_specular_intensity = 0;
+	GLuint uniform_shininess = 0; 
 
 	glm::mat4 projection = glm::perspective(45.0f, (GLfloat)main_window.get_buffer_width()/(GLfloat)main_window.get_buffer_height(), 0.1f, 100.0f);
 
@@ -158,27 +164,34 @@ int main()
 		uniform_view = shader_list[0]->get_view_location();
 		uniform_ambient_color = shader_list[0]->get_ambient_color_location();
 		uniform_ambient_intensity = shader_list[0]->get_ambient_intensity_location();
-		unform_diffuse_direction = shader_list[0]->get_diffuse_direction_location();
-		unform_diffuse_intensity = shader_list[0]->get_diffuse_intensity_location();
+		uniform_diffuse_direction = shader_list[0]->get_diffuse_direction_location();
+		uniform_diffuse_intensity = shader_list[0]->get_diffuse_intensity_location();
+		uinform_eye_position = shader_list[0]->get_eye_position_location();
+		uniform_specular_intensity = shader_list[0]->get_specular_intensity_location();
+		uniform_shininess = shader_list[0]->get_shininess_location(); 
 
-		main_light.use_light(uniform_ambient_intensity, uniform_ambient_color, unform_diffuse_intensity, unform_diffuse_direction);
+		main_light.use_light(uniform_ambient_intensity, uniform_ambient_color, uniform_diffuse_intensity, uniform_diffuse_direction);
+
+		glUniformMatrix4fv(uniform_projection, 1, GL_FALSE, glm::value_ptr(projection));	
+		glUniformMatrix4fv(uniform_view, 1, GL_FALSE, glm::value_ptr(c.calculate_view_matrix()));	
+		glUniform3f(uinform_eye_position, c.get_camera_position().x, c.get_camera_position().y, c.get_camera_position().z);
 
 		glm::mat4 model(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, -1.0f, -2.5f));
 		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
-		model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
+		// model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
 		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
-		glUniformMatrix4fv(uniform_projection, 1, GL_FALSE, glm::value_ptr(projection));	
-		glUniformMatrix4fv(uniform_view, 1, GL_FALSE, glm::value_ptr(c.calculate_view_matrix()));	
 		brick.use();
+		shiny_material.use(uniform_specular_intensity, uniform_shininess);
 		mesh_list[0]->render();
 
 		model = glm::mat4(1.0f);
-		model = glm::translate(model, glm::vec3(0.0f, 1.0f, -2.5f));
+		model = glm::translate(model, glm::vec3(0.0f, 4.0f, -2.5f));
 		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
-		model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
+		// model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
 		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
 		dirt.use();
+		dull_material.use(uniform_specular_intensity, uniform_shininess);
 		mesh_list[1]->render();
 
 		glUseProgram(0);

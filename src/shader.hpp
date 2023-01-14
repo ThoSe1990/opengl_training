@@ -25,6 +25,9 @@ public:
     GLuint get_ambient_color_location() { return m_ambient_color; }
     GLuint get_diffuse_intensity_location() { return m_uniform_diffuse_intensity; }
     GLuint get_diffuse_direction_location() { return m_uniform_diffuse_direction; }
+    GLuint get_specular_intensity_location() { return m_uniform_specular_intensity; }
+    GLuint get_shininess_location() { return m_uniform_shininess; }
+    GLuint get_eye_position_location() { return m_uniform_eye_position; }
 
     void use()
     {
@@ -80,6 +83,9 @@ private:
         m_ambient_intensity = glGetUniformLocation(m_id, "direct_light.intensity");
         m_uniform_diffuse_direction = glGetUniformLocation(m_id, "direct_light.direction");
         m_uniform_diffuse_intensity = glGetUniformLocation(m_id, "direct_light.diffuse_intensity");
+        m_uniform_specular_intensity = glGetUniformLocation(m_id, "m.specular_intensity");
+        m_uniform_shininess = glGetUniformLocation(m_id, "m.shininess");
+        m_uniform_eye_position = glGetUniformLocation(m_id, "eye_position");
     }
 
     void add(GLuint program, const char* shader_code, GLenum type)
@@ -117,6 +123,9 @@ private:
     GLuint m_ambient_intensity{0};
     GLuint m_uniform_diffuse_intensity{0};
     GLuint m_uniform_diffuse_direction{0};
+    GLuint m_uniform_eye_position{0};
+    GLuint m_uniform_specular_intensity{0};
+    GLuint m_uniform_shininess{0};
 };
 
 

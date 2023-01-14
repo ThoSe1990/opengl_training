@@ -53,10 +53,8 @@ public:
         update();
     }
 
-    glm::mat4 calculate_view_matrix()
-    {
-        return glm::lookAt(m_position, m_position + m_front, m_up);
-    }
+    glm::vec3 get_camera_position() { return m_position; }
+    glm::mat4 calculate_view_matrix() { return glm::lookAt(m_position, m_position + m_front, m_up); }
 
 private:
     void update()
