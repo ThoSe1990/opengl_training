@@ -30,6 +30,14 @@ public:
     {
         return m_view;
     }
+    GLuint get_ambient_intensity_location()
+    {
+        return m_ambient_intensity;
+    }
+    GLuint get_ambient_color_location()
+    {
+        return m_ambient_color;
+    }
 
     void use()
     {
@@ -81,6 +89,8 @@ private:
         m_model = glGetUniformLocation(m_id, "model");
         m_projection = glGetUniformLocation(m_id, "projection");
         m_view = glGetUniformLocation(m_id, "view");
+        m_ambient_color = glGetUniformLocation(m_id, "direct_light.color");
+        m_ambient_intensity = glGetUniformLocation(m_id, "direct_light.intensity");
     }
 
     void add(GLuint program, const char* shader_code, GLenum type)
@@ -114,6 +124,8 @@ private:
     GLuint m_projection{0};
     GLuint m_model{0};
     GLuint m_view{0};
+    GLuint m_ambient_color{0};
+    GLuint m_ambient_intensity{0};
 };
 
 

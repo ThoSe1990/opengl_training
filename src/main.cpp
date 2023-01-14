@@ -17,7 +17,7 @@
 #include "shader.hpp"
 #include "camera.hpp"
 #include "texture.hpp"
-
+#include "light.hpp"
 
 const float to_radians = 3.14159265f / 180.0f;
 
@@ -69,13 +69,17 @@ int main()
 	brick.load();
 	texture dirt("textures/dirt.png");
 	dirt.load();
-	
+
+	light main_light(0.0f, 1.0f, 0.0f, 0.9f);
+
 	create_objects();
 	create_shaders();
 
 	GLuint uniform_projection = 0;
 	GLuint uniform_model = 0;
 	GLuint uniform_view = 0;
+	GLuint uniform_ambient_color = 0;
+	GLuint uniform_ambient_intensity = 0;
 
 	glm::mat4 projection = glm::perspective(45.0f, (GLfloat)main_window.get_buffer_width()/(GLfloat)main_window.get_buffer_height(), 0.1f, 100.0f);
 
@@ -100,9 +104,13 @@ int main()
 		uniform_model = shader_list[0]->get_model_location();
 		uniform_projection = shader_list[0]->get_projection_location();
 		uniform_view = shader_list[0]->get_view_location();
+		uniform_ambient_color = shader_list[0]->get_ambient_color_location();
+		uniform_ambient_intensity = shader_list[0]->get_ambient_intensity_location();
+
+		main_light.use_light(uniform_ambient_intensity, uniform_ambient_color);
 
 		glm::mat4 model(1.0f);
-		model = glm::translate(model, glm::vec3(0.0f, 0.0f, -2.5f));
+		model = glm::translate(model, glm::vec3(0.0f, -1.0f, -2.5f));
 		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
 		model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
 		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
@@ -118,8 +126,6 @@ int main()
 		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
 		dirt.use();
 		mesh_list[1]->render();
-
-
 
 		glUseProgram(0);
 
