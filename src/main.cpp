@@ -5,6 +5,9 @@
 #include <GL\glew.h>
 #include <GLFW\glfw3.h>
 
+#include <glm\glm.hpp>
+#include <glm\gtc\matrix_transform.hpp>
+#include <glm\gtc\type_ptr.hpp>
 
 // Window dimensions
 const GLint WIDTH = 800, HEIGHT = 600;
@@ -13,22 +16,22 @@ GLuint VAO;
 GLuint VBO;
 GLuint shader;
 
-GLuint uniform_x_move;
+GLuint uniform_model;
 bool direction = true;
 float triangle_offset = 0.0f;
 float triangle_max_offset = 0.7f;
-float triangle_increment = 0.005f;
+float triangle_increment = 0.0005f;
 
 static const char* vertex_shader = R"*(
 #version 330
 
 layout (location = 0) in vec3 pos;
 
-uniform float x_move;
+uniform mat4 model;
 
 void main()
 {
-	gl_Position = vec4(0.4*pos.x + x_move, 0.4*pos.y, 0.5*pos.z, 1.0);
+	gl_Position = model * vec4(0.4*pos.x, 0.4*pos.y, pos.z, 1.0);
 }
 )*";
 
@@ -122,7 +125,7 @@ void compile_shaders()
 		return;
 	}
 
-	uniform_x_move = glGetUniformLocation(shader, "x_move");
+	uniform_model = glGetUniformLocation(shader, "model");
 }
 
 
@@ -198,10 +201,12 @@ int main()
 		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		
 		glUseProgram(shader);
 		
-		glUniform1f(uniform_x_move, triangle_offset);
+		glm::mat4 model(1.0f);
+		model = glm::translate(model, glm::vec3(triangle_offset, triangle_offset, 0.0f));
+
+		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
 
 		glBindVertexArray(VAO);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
