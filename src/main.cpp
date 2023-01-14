@@ -29,24 +29,29 @@ float current_scale = 0.0f;
 static const char* vertex_shader = R"*(
 #version 330
 
-layout (location = 0) in vec3 pos
-;
+layout (location = 0) in vec3 pos;
+
+out vec4 vertex_color;
+
 uniform mat4 model;
 
 void main()
 {
 	gl_Position = model * vec4(pos, 1.0);
+	vertex_color = vec4(clamp(pos, 0.0f, 1.0f), 1.0f);
 }
 )*";
 
 static const char* fragment_shader = R"*(
 #version 330
 
+in vec4 vertex_color;
+
 out vec4 color;
 
 void main()
 {
-	color = vec4(0.0, 1.0, 0.0, 1.0);
+	color = vertex_color;
 }
 )*";
 
@@ -215,9 +220,9 @@ int main()
 		glUseProgram(shader);
 		
 		glm::mat4 model(1.0f);
-		model = glm::translate(model, glm::vec3(triangle_offset, 0.0f, 0.0f));
-		model = glm::rotate(model, current_angle*to_radians, glm::vec3(0.0f, 0.0f, 1.0f));
-		model = glm::scale(model, glm::vec3(current_scale, current_scale, 1.0f));
+		model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
+		model = glm::rotate(model, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f));
+		model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
 
 		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
 
