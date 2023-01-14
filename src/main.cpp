@@ -1,3 +1,5 @@
+#define STB_IMAGE_IMPLEMENTATION
+
 #include <stdio.h>
 #include <cmath>
 #include <string>
@@ -14,6 +16,10 @@
 #include "mesh.hpp"
 #include "shader.hpp"
 #include "camera.hpp"
+#include "texture.hpp"
+
+
+const float to_radians = 3.14159265f / 180.0f;
 
 std::vector<mesh*> mesh_list;
 std::vector<shader*> shader_list;
@@ -35,14 +41,16 @@ void create_objects()
 	};
 
 	GLfloat vertices[] = {
-		-1.0f, -1.0f, 0.0f, // 0
-		0.0f, -1.0f, 1.0f, // 1
-		1.0f, -1.0f, 0.0f, // 2
-		0.0f, 1.0f, 0.0f // 3
+	// introducing u and s for textures
+	//    x       y     z    u     s
+		-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+		0.0f, -1.0f, 1.0f, 0.5f, 0.0f,
+		1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 1.0f, 0.0f,  0.5f, 1.0f
 	};
 
-	mesh_list.push_back(new mesh(vertices, indices, 12, 12));
-	mesh_list.push_back(new mesh(vertices, indices, 12, 12));
+	mesh_list.push_back(new mesh(vertices, indices, 20, 12));
+	mesh_list.push_back(new mesh(vertices, indices, 20, 12));
 }
 
 void create_shaders()
@@ -57,6 +65,11 @@ int main()
 
 	camera c(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 90.0f, 0.0f, 5.0f, 0.1f);
 
+	texture brick("textures/brick.png");
+	brick.load();
+	texture dirt("textures/dirt.png");
+	dirt.load();
+	
 	create_objects();
 	create_shaders();
 
@@ -95,6 +108,7 @@ int main()
 		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
 		glUniformMatrix4fv(uniform_projection, 1, GL_FALSE, glm::value_ptr(projection));	
 		glUniformMatrix4fv(uniform_view, 1, GL_FALSE, glm::value_ptr(c.calculate_view_matrix()));	
+		brick.use();
 		mesh_list[0]->render();
 
 		model = glm::mat4(1.0f);
@@ -102,6 +116,7 @@ int main()
 		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
 		model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
 		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
+		dirt.use();
 		mesh_list[1]->render();
 
 

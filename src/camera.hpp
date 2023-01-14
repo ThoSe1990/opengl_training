@@ -29,10 +29,10 @@ public:
             m_position -= m_front*velocity;
         }
         if (keys[GLFW_KEY_A]) {
-            m_position += m_right*velocity;
+            m_position -= m_right*velocity;
         }
         if (keys[GLFW_KEY_D]) {
-            m_position -= m_right*velocity;
+            m_position += m_right*velocity;
         }
     }
 
