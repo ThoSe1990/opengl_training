@@ -18,26 +18,13 @@ public:
         clear();
     }
 
-    GLuint get_projection_location()
-    {
-        return m_projection;
-    }
-    GLuint get_model_location()
-    {
-        return m_model;
-    }
-    GLuint get_view_location()
-    {
-        return m_view;
-    }
-    GLuint get_ambient_intensity_location()
-    {
-        return m_ambient_intensity;
-    }
-    GLuint get_ambient_color_location()
-    {
-        return m_ambient_color;
-    }
+    GLuint get_projection_location() { return m_projection; }
+    GLuint get_model_location() { return m_model; }
+    GLuint get_view_location() { return m_view; }
+    GLuint get_ambient_intensity_location() { return m_ambient_intensity; }
+    GLuint get_ambient_color_location() { return m_ambient_color; }
+    GLuint get_diffuse_intensity_location() { return m_uniform_diffuse_intensity; }
+    GLuint get_diffuse_direction_location() { return m_uniform_diffuse_direction; }
 
     void use()
     {
@@ -91,6 +78,8 @@ private:
         m_view = glGetUniformLocation(m_id, "view");
         m_ambient_color = glGetUniformLocation(m_id, "direct_light.color");
         m_ambient_intensity = glGetUniformLocation(m_id, "direct_light.intensity");
+        m_uniform_diffuse_direction = glGetUniformLocation(m_id, "direct_light.direction");
+        m_uniform_diffuse_intensity = glGetUniformLocation(m_id, "direct_light.diffuse_intensity");
     }
 
     void add(GLuint program, const char* shader_code, GLenum type)
@@ -126,6 +115,8 @@ private:
     GLuint m_view{0};
     GLuint m_ambient_color{0};
     GLuint m_ambient_intensity{0};
+    GLuint m_uniform_diffuse_intensity{0};
+    GLuint m_uniform_diffuse_direction{0};
 };
 
 
