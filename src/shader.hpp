@@ -7,7 +7,8 @@
 
 #include  <GL\glew.h>
 
-
+#include "directional_light.hpp"
+#include "point_light.hpp"
 
 class shader 
 {
@@ -21,13 +22,44 @@ public:
     GLuint get_projection_location() { return m_projection; }
     GLuint get_model_location() { return m_model; }
     GLuint get_view_location() { return m_view; }
-    GLuint get_ambient_intensity_location() { return m_ambient_intensity; }
-    GLuint get_ambient_color_location() { return m_ambient_color; }
-    GLuint get_diffuse_intensity_location() { return m_uniform_diffuse_intensity; }
-    GLuint get_diffuse_direction_location() { return m_uniform_diffuse_direction; }
+    GLuint get_ambient_intensity_location() { return m_uniform_directional_light.uniform_ambient_intensity; }
+    GLuint get_ambient_color_location() { return m_uniform_directional_light.uniform_color; }
+    GLuint get_diffuse_intensity_location() { return m_uniform_directional_light.uniform_diffuse_intensity; }
+    GLuint get_diffuse_direction_location() { return m_uniform_directional_light.uniform_direction; }
     GLuint get_specular_intensity_location() { return m_uniform_specular_intensity; }
     GLuint get_shininess_location() { return m_uniform_shininess; }
     GLuint get_eye_position_location() { return m_uniform_eye_position; }
+
+    void set_directional_light(directional_light* dl)
+    {
+        dl->use_light(
+            m_uniform_directional_light.uniform_ambient_intensity,
+            m_uniform_directional_light.uniform_color, 
+            m_uniform_directional_light.uniform_diffuse_intensity,
+            m_uniform_directional_light.uniform_direction
+        );
+    }
+
+    void set_point_lights(point_light* point_lights, unsigned int light_count)
+    {
+        if (light_count > MAX_POINT_LIGHTS) { 
+            light_count = MAX_POINT_LIGHTS; 
+        }
+
+        glUniform1i(m_uniform_point_light_count, light_count);
+        
+        for (std::size_t i = 0 ; i < light_count ; i++){
+            point_lights[i].use_light(
+                m_uniform_point_light[i].uniform_ambient_intensity, 
+                m_uniform_point_light[i].uniform_color,
+                m_uniform_point_light[i].uniform_diffuse_intensity,
+                m_uniform_point_light[i].uniform_position,
+                m_uniform_point_light[i].uniform_constant,
+                m_uniform_point_light[i].uniform_linear,
+                m_uniform_point_light[i].uniform_exponent
+            );
+        }
+    }
 
     void use()
     {
@@ -79,13 +111,38 @@ private:
         m_model = glGetUniformLocation(m_id, "model");
         m_projection = glGetUniformLocation(m_id, "projection");
         m_view = glGetUniformLocation(m_id, "view");
-        m_ambient_color = glGetUniformLocation(m_id, "direct_light.color");
-        m_ambient_intensity = glGetUniformLocation(m_id, "direct_light.intensity");
-        m_uniform_diffuse_direction = glGetUniformLocation(m_id, "direct_light.direction");
-        m_uniform_diffuse_intensity = glGetUniformLocation(m_id, "direct_light.diffuse_intensity");
+        m_uniform_directional_light.uniform_color = glGetUniformLocation(m_id, "direct_light.base.color");
+        m_uniform_directional_light.uniform_ambient_intensity = glGetUniformLocation(m_id, "direct_light.base.ambient_intensity");
+        m_uniform_directional_light.uniform_direction = glGetUniformLocation(m_id, "direct_light.direction");
+        m_uniform_directional_light.uniform_diffuse_intensity = glGetUniformLocation(m_id, "direct_light.base.diffuse_intensity");
         m_uniform_specular_intensity = glGetUniformLocation(m_id, "m.specular_intensity");
         m_uniform_shininess = glGetUniformLocation(m_id, "m.shininess");
         m_uniform_eye_position = glGetUniformLocation(m_id, "eye_position");
+        m_uniform_point_light_count = glGetUniformLocation(m_id, "point_light_count");
+
+        for (int i = 0 ; i < MAX_POINT_LIGHTS ; i++){
+            char location_buffer[100] = {'\0'};
+
+            snprintf(location_buffer, sizeof(location_buffer), "point_lights[%i].base.color", i);
+            m_uniform_point_light[i].uniform_color = glGetUniformLocation(m_id, location_buffer);
+            
+            snprintf(location_buffer, sizeof(location_buffer), "point_lights[%i].base.ambient_intensity", i);
+            m_uniform_point_light[i].uniform_ambient_intensity = glGetUniformLocation(m_id, location_buffer);
+
+            snprintf(location_buffer, sizeof(location_buffer), "point_lights[%i].base.diffuse_intensity", i);
+            m_uniform_point_light[i].uniform_diffuse_intensity = glGetUniformLocation(m_id, location_buffer);
+
+            snprintf(location_buffer, sizeof(location_buffer), "point_lights[%i].position", i);
+            m_uniform_point_light[i].uniform_position = glGetUniformLocation(m_id, location_buffer);
+
+            snprintf(location_buffer, sizeof(location_buffer), "point_lights[%i].constant", i);
+            m_uniform_point_light[i].uniform_constant = glGetUniformLocation(m_id, location_buffer);
+            snprintf(location_buffer, sizeof(location_buffer), "point_lights[%i].linear", i);
+            m_uniform_point_light[i].uniform_linear = glGetUniformLocation(m_id, location_buffer);
+            snprintf(location_buffer, sizeof(location_buffer), "point_lights[%i].exponent", i);
+            m_uniform_point_light[i].uniform_exponent = glGetUniformLocation(m_id, location_buffer);
+
+        }
     }
 
     void add(GLuint program, const char* shader_code, GLenum type)
@@ -101,13 +158,13 @@ private:
         glShaderSource(current_shader, 1, code, code_length);
         glCompileShader(current_shader);
 
-        GLint result = 0;
-        GLchar log[1024] = {0};
+        int result = 0;
+        char log[1024] = {0};
 
         glGetShaderiv(current_shader, GL_COMPILE_STATUS, &result);
         if (!result) {
             glGetShaderInfoLog(current_shader, sizeof(log), NULL, log);
-            printf("Error compiling &d  shader! %s\n", type, log);
+            printf("Error compiling %d  shader! %s\n", (int)type, log);
             return;
         }
 
@@ -115,14 +172,33 @@ private:
     }
 
 private:
+    int m_point_light_count{0};
+
+    struct {
+        GLuint uniform_color{0};
+        GLuint uniform_ambient_intensity{0};
+        GLuint uniform_diffuse_intensity{0};
+        
+        GLuint uniform_direction{0};
+    } m_uniform_directional_light;
+
+    struct {
+        GLuint uniform_color{0};
+        GLuint uniform_ambient_intensity{0};
+        GLuint uniform_diffuse_intensity{0};
+
+        GLuint uniform_position{0};
+        GLuint uniform_constant{0};
+        GLuint uniform_linear{0};
+        GLuint uniform_exponent{0};
+    } m_uniform_point_light[MAX_POINT_LIGHTS];
+    GLuint m_uniform_point_light_count{0};
+
     GLuint m_id{0};
     GLuint m_projection{0};
     GLuint m_model{0};
     GLuint m_view{0};
-    GLuint m_ambient_color{0};
-    GLuint m_ambient_intensity{0};
-    GLuint m_uniform_diffuse_intensity{0};
-    GLuint m_uniform_diffuse_direction{0};
+    
     GLuint m_uniform_eye_position{0};
     GLuint m_uniform_specular_intensity{0};
     GLuint m_uniform_shininess{0};

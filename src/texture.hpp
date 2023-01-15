@@ -18,7 +18,7 @@ public:
     {
         unsigned char* data = stbi_load(m_file.c_str(), &m_width, &m_height, &m_bit_depth, 0);
         if (!data) {
-            printf("failed to load %s\n", m_file);
+            printf("failed to load %s\n", m_file.c_str());
             return;
         }
 

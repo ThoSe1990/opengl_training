@@ -68,6 +68,8 @@ public:
         glViewport(0, 0, m_buffer_width, m_buffer_height);
 
         glfwSetWindowUserPointer(m_window, this);
+
+        return 0;
     }
     void swap_buffers() { glfwSwapBuffers(m_window); }
     GLfloat get_buffer_width() const { return m_buffer_width; }

@@ -12,12 +12,15 @@
 #include <glm\gtc\matrix_transform.hpp>
 #include <glm\gtc\type_ptr.hpp>
 
+static constexpr std::size_t MAX_POINT_LIGHTS = 3;
+
 #include "window.hpp"
 #include "mesh.hpp"
 #include "shader.hpp"
 #include "camera.hpp"
 #include "texture.hpp"
-#include "light.hpp"
+#include "directional_light.hpp"
+#include "point_light.hpp"
 #include "material.hpp"
 
 const float to_radians = 3.14159265f / 180.0f;
@@ -84,7 +87,6 @@ void create_objects()
 		2, 3, 0,
 		0, 1, 2
 	};
-
 	GLfloat vertices[] = {
 	// introducing u and s for textures
 	//    x       y     z       u     v       nx    ny    nz
@@ -98,6 +100,19 @@ void create_objects()
 
 	mesh_list.push_back(new mesh(vertices, indices, 32, 12));
 	mesh_list.push_back(new mesh(vertices, indices, 32, 12));
+
+
+	unsigned int floor_indices[] = {
+		0, 2, 1,
+		1, 2, 3
+	};
+	GLfloat floor_vertices[] = {
+		-10.0f, 0.0f, -10.f, 0.0f,    0.0f, 0.0f,    -1.0f, 0.0f,
+		10.0f, 0.0f, -10.0f, 10.0f,   0.0f, 0.0f,    -1.0f, 0.0f,
+		-10.0f, 0.0f, 10.0f, 0.0f,   10.0f, 0.0f,    -1.0f, 0.0f,
+		10.0f, 0.0f, 10.0f, 10.0f,   10.0f, 0.0f,    -1.0f, 0.0f
+	};
+	mesh_list.push_back(new mesh(floor_vertices, floor_indices, 32, 6));
 }
 
 void create_shaders()
@@ -110,19 +125,38 @@ int main()
 	window main_window(1366, 768);
 	main_window.initialize();
 
-	camera c(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), 90.0f, 0.0f, 5.0f, 0.1f);
+	camera c(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f, 5.0f, 0.2f);
 
-	material shiny_material(1.0f, 32);
+	material shiny_material(4.0f, 256);
 	material dull_material(0.3f, 4);
 
 	texture brick("textures/brick.png");
 	brick.load();
 	texture dirt("textures/dirt.png");
 	dirt.load();
+	texture plain("textures/plain.png");
+	plain.load();
 
-	light main_light(
-		1.0f, 1.0f, 1.0f, 0.1f, 
-		2.0f, -1.0f, -2.0f, 0.1f
+	directional_light main_light(
+		1.0f, 1.0f, 1.0f, 
+		0.0f, 0.0f, 
+		0.0f, 0.0f, -1.0f
+	);
+	
+	int point_light_count = 0;
+	point_light point_lights[MAX_POINT_LIGHTS];
+
+	point_lights[point_light_count++] = point_light(
+		0.0f, 0.0f, 1.0f, 
+		0.1f, 1.0f,
+		0.0f, 0.0f, 0.0f,
+		0.3f, 0.2f, 0.1f
+	);
+	point_lights[point_light_count++] = point_light(
+		1.0f, 0.0f, 0.0f, 
+		0.1f, 1.0f,
+		-4.0f, 2.0f, 0.0f,
+		0.3f, 0.1f, 0.1f
 	);
 
 	create_objects();
@@ -131,10 +165,7 @@ int main()
 	GLuint uniform_projection = 0;
 	GLuint uniform_model = 0;
 	GLuint uniform_view = 0;
-	GLuint uniform_ambient_color = 0;
-	GLuint uniform_ambient_intensity = 0;
-	GLuint uniform_diffuse_direction = 0;
-	GLuint uniform_diffuse_intensity = 0;
+	
 	GLuint uinform_eye_position = 0;
 	GLuint uniform_specular_intensity = 0;
 	GLuint uniform_shininess = 0; 
@@ -162,15 +193,16 @@ int main()
 		uniform_model = shader_list[0]->get_model_location();
 		uniform_projection = shader_list[0]->get_projection_location();
 		uniform_view = shader_list[0]->get_view_location();
-		uniform_ambient_color = shader_list[0]->get_ambient_color_location();
-		uniform_ambient_intensity = shader_list[0]->get_ambient_intensity_location();
-		uniform_diffuse_direction = shader_list[0]->get_diffuse_direction_location();
-		uniform_diffuse_intensity = shader_list[0]->get_diffuse_intensity_location();
+		
 		uinform_eye_position = shader_list[0]->get_eye_position_location();
 		uniform_specular_intensity = shader_list[0]->get_specular_intensity_location();
 		uniform_shininess = shader_list[0]->get_shininess_location(); 
 
-		main_light.use_light(uniform_ambient_intensity, uniform_ambient_color, uniform_diffuse_intensity, uniform_diffuse_direction);
+		shader_list[0]->set_directional_light(&main_light);
+		shader_list[0]->set_point_lights(point_lights, point_light_count);
+		// main_light.use_light(uniform_ambient_intensity, uniform_ambient_color, uniform_diffuse_intensity, uniform_diffuse_direction);
+
+
 
 		glUniformMatrix4fv(uniform_projection, 1, GL_FALSE, glm::value_ptr(projection));	
 		glUniformMatrix4fv(uniform_view, 1, GL_FALSE, glm::value_ptr(c.calculate_view_matrix()));	
@@ -193,6 +225,15 @@ int main()
 		dirt.use();
 		dull_material.use(uniform_specular_intensity, uniform_shininess);
 		mesh_list[1]->render();
+
+		model = glm::mat4(1.0f);
+		model = glm::translate(model, glm::vec3(0.0f, -2.0f, 0.0f));
+		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+		// model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
+		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
+		plain.use();
+		shiny_material.use(uniform_specular_intensity, uniform_shininess);
+		mesh_list[2]->render();
 
 		glUseProgram(0);
 
