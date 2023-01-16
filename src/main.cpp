@@ -13,6 +13,7 @@
 #include <glm\gtc\type_ptr.hpp>
 
 static constexpr std::size_t MAX_POINT_LIGHTS = 3;
+static constexpr std::size_t MAX_SPOT_LIGHTS = 3;
 
 #include "window.hpp"
 #include "mesh.hpp"
@@ -21,6 +22,7 @@ static constexpr std::size_t MAX_POINT_LIGHTS = 3;
 #include "texture.hpp"
 #include "directional_light.hpp"
 #include "point_light.hpp"
+#include "spot_light.hpp"
 #include "material.hpp"
 
 const float to_radians = 3.14159265f / 180.0f;
@@ -148,16 +150,36 @@ int main()
 
 	point_lights[point_light_count++] = point_light(
 		0.0f, 0.0f, 1.0f, 
-		0.1f, 1.0f,
+		0.0f, 0.1f,
 		0.0f, 0.0f, 0.0f,
 		0.3f, 0.2f, 0.1f
 	);
 	point_lights[point_light_count++] = point_light(
 		1.0f, 0.0f, 0.0f, 
-		0.1f, 1.0f,
+		0.0f, 0.1f,
 		-4.0f, 2.0f, 0.0f,
 		0.3f, 0.1f, 0.1f
 	);
+
+	int spot_light_count = 0;
+	spot_light spot_lights[MAX_SPOT_LIGHTS];
+	spot_lights[spot_light_count++] = spot_light(
+		0.0f, 1.0f, 1.0f, 
+		0.0f, 2.0f,
+		0.0f, 0.0f, 0.0f,
+		0.0f, -1.0f, 0.0f,
+		0.3f, 0.2f, 0.1f,
+		20.0f
+	);
+	spot_lights[spot_light_count++] = spot_light(
+		1.0f, 1.0f, 1.0f, 
+		0.0f, 1.0f,
+		0.0f, -1.5f, 0.0f,
+		-100.0f, -1.0f, 0.0f,
+		1.3f, 0.2f, 0.1f,
+		20.0f
+	);
+
 
 	create_objects();
 	create_shaders();
@@ -198,8 +220,13 @@ int main()
 		uniform_specular_intensity = shader_list[0]->get_specular_intensity_location();
 		uniform_shininess = shader_list[0]->get_shininess_location(); 
 
+		glm::vec3 a_bit_lower = c.get_camera_position();
+		a_bit_lower.y -= 0.3f;
+		spot_lights[0].set_flash(a_bit_lower, c.get_camera_direction());
+
 		shader_list[0]->set_directional_light(&main_light);
 		shader_list[0]->set_point_lights(point_lights, point_light_count);
+		shader_list[0]->set_spot_lights(spot_lights, spot_light_count);
 		// main_light.use_light(uniform_ambient_intensity, uniform_ambient_color, uniform_diffuse_intensity, uniform_diffuse_direction);
 
 
@@ -231,7 +258,7 @@ int main()
 		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
 		// model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
 		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
-		plain.use();
+		dirt.use();
 		shiny_material.use(uniform_specular_intensity, uniform_shininess);
 		mesh_list[2]->render();
 

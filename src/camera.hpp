@@ -54,6 +54,7 @@ public:
     }
 
     glm::vec3 get_camera_position() { return m_position; }
+    glm::vec3 get_camera_direction() { return glm::normalize(m_front); }
     glm::mat4 calculate_view_matrix() { return glm::lookAt(m_position, m_position + m_front, m_up); }
 
 private:
