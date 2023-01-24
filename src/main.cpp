@@ -25,6 +25,10 @@ static constexpr std::size_t MAX_SPOT_LIGHTS = 3;
 #include "spot_light.hpp"
 #include "material.hpp"
 
+#include "assimp/Importer.hpp"
+
+#include "model.hpp"
+
 const float to_radians = 3.14159265f / 180.0f;
 
 std::vector<mesh*> mesh_list;
@@ -132,12 +136,14 @@ int main()
 	material shiny_material(4.0f, 256);
 	material dull_material(0.3f, 4);
 
+	model xwing("models/xwing/x-wing.obj");
+
 	texture brick("textures/brick.png");
-	brick.load();
+	brick.load_with_alpha();
 	texture dirt("textures/dirt.png");
-	dirt.load();
+	dirt.load_with_alpha();
 	texture plain("textures/plain.png");
-	plain.load();
+	plain.load_with_alpha();
 
 	directional_light main_light(
 		1.0f, 1.0f, 1.0f, 
@@ -261,6 +267,14 @@ int main()
 		dirt.use();
 		shiny_material.use(uniform_specular_intensity, uniform_shininess);
 		mesh_list[2]->render();
+
+		model = glm::mat4(1.0f);
+		model = glm::translate(model, glm::vec3(0.0f, -2.0f, 0.0f));
+		model = glm::scale(model, glm::vec3(0.001f, 0.001f, 0.001f));
+		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
+		shiny_material.use(uniform_specular_intensity, uniform_shininess);
+		xwing.render();
 
 		glUseProgram(0);
 
