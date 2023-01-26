@@ -5,7 +5,9 @@
 #include <iostream>
 #include <fstream>
 
-#include  <GL\glew.h>
+#include <GL\glew.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "directional_light.hpp"
 #include "point_light.hpp"
@@ -40,7 +42,6 @@ public:
             m_uniform_directional_light.uniform_direction
         );
     }
-
     void set_point_lights(point_light* point_lights, unsigned int light_count)
     {
         if (light_count > MAX_POINT_LIGHTS) { 
@@ -61,7 +62,6 @@ public:
             );
         }
     }
-
     void set_spot_lights(spot_light* spot_lights, unsigned int light_count)
     {
         if (light_count > MAX_SPOT_LIGHTS) { 
@@ -83,6 +83,19 @@ public:
                 m_uniform_spot_light[i].uniform_edge
             );
         }
+    }
+
+    void set_texture(GLuint texture_unit)
+    {
+        glUniform1i(m_uniform_texture, texture_unit);
+    }
+    void set_directional_shadow_map(GLuint texture_unit)
+    {
+        glUniform1i(m_uniform_directional_shadow_map, texture_unit);
+    }
+    void set_directional_light_transform(glm::mat4* light_transform)
+    {
+        glUniformMatrix4fv(m_uniform_directional_light_transform, 1, GL_FALSE, glm::value_ptr(*light_transform));
     }
 
     void use()
@@ -143,7 +156,6 @@ private:
         m_uniform_shininess = glGetUniformLocation(m_id, "m.shininess");
         m_uniform_eye_position = glGetUniformLocation(m_id, "eye_position");
         
-        
         m_uniform_point_light_count = glGetUniformLocation(m_id, "point_light_count");
 
         for (int i = 0 ; i < MAX_POINT_LIGHTS ; i++){
@@ -200,6 +212,10 @@ private:
             snprintf(location_buffer, sizeof(location_buffer), "spot_lights[%i].edge", i);
             m_uniform_spot_light[i].uniform_edge = glGetUniformLocation(m_id, location_buffer);
         }
+
+        m_uniform_texture = glGetUniformLocation(m_id, "this_texture");
+        m_uniform_directional_light_transform = glGetUniformLocation(m_id, "directional_light_transform");
+        m_uniform_directional_shadow_map = glGetUniformLocation(m_id, "directional_shadow_map");
     }
 
     void add(GLuint program, const char* shader_code, GLenum type)
@@ -278,6 +294,10 @@ private:
     GLuint m_uniform_eye_position{0};
     GLuint m_uniform_specular_intensity{0};
     GLuint m_uniform_shininess{0};
+
+    GLuint m_uniform_texture;
+    GLuint m_uniform_directional_light_transform;
+    GLuint m_uniform_directional_shadow_map;
 };
 
 

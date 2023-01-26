@@ -14,7 +14,7 @@ class model
 {
 public: 
     model() = default;
-    model(const std::string& filename) { load(filename); }
+    // model(const std::string& filename) { load(filename); }
     ~model() = default;
 
     void load(const std::string& filename)

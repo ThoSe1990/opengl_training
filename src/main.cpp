@@ -33,13 +33,45 @@ const float to_radians = 3.14159265f / 180.0f;
 
 std::vector<mesh*> mesh_list;
 std::vector<shader*> shader_list;
+shader* directional_shadow_shader;
 
 GLfloat delta_time = 0.0f;
 GLfloat last_time = 0.0f;
 
+GLuint uniform_projection = 0;
+GLuint uniform_model = 0;
+GLuint uniform_view = 0;
+
+GLuint uinform_eye_position = 0;
+GLuint uniform_specular_intensity = 0;
+GLuint uniform_shininess = 0; 
+
+texture brick("textures/brick.png");
+texture dirt("textures/dirt.png");
+texture plain("textures/plain.png");
+
+material shiny_material(4.0f, 256);
+material dull_material(0.3f, 4);
+
+model xwing;
+model a380;
+
+spot_light spot_lights[MAX_SPOT_LIGHTS];
+point_light point_lights[MAX_POINT_LIGHTS];
+int point_light_count = 0;
+int spot_light_count = 0;
+
+camera c(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f, 5.0f, 0.2f);
+
+directional_light main_light;
+
+glm::mat4 projection;
 
 static const char* vertex_shader_file = "src/shaders/shader.vert";
 static const char* fragment_shader_file = "src/shaders/shader.frag";
+
+static const char* vertex_direct_shadow_file = "src/shaders/directional_shadow_map.vert";
+static const char* fragment_direct_shadow_file = "src/shaders/directional_shadow_map.frag";
 
 void calculate_average_normals(
  unsigned int* indices,
@@ -124,6 +156,115 @@ void create_objects()
 void create_shaders()
 {
 	shader_list.push_back(make_shader_from_file(vertex_shader_file,fragment_shader_file));
+	directional_shadow_shader = make_shader_from_file(vertex_direct_shadow_file, fragment_direct_shadow_file);
+}
+
+
+void render_scene()
+{
+	glm::mat4 model(1.0f);
+	
+	model = glm::translate(model, glm::vec3(0.0f, -1.0f, -2.5f));
+	model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+	// model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
+	glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
+	brick.use();
+	shiny_material.use(uniform_specular_intensity, uniform_shininess);
+	mesh_list[0]->render();
+
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(0.0f, 4.0f, -2.5f));
+	model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
+	dirt.use();
+	dull_material.use(uniform_specular_intensity, uniform_shininess);
+	mesh_list[1]->render();
+
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(0.0f, -2.0f, 0.0f));
+	model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
+	dirt.use();
+	shiny_material.use(uniform_specular_intensity, uniform_shininess);
+	mesh_list[2]->render();
+
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(-7.0f, 0.0f, 10.0f));
+	model = glm::scale(model, glm::vec3(0.005f, 0.005f, 0.005f));
+	glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
+	shiny_material.use(uniform_specular_intensity, uniform_shininess);
+	xwing.render();
+
+
+	static float airbus_angle = 0.0f;
+	airbus_angle += 1.0f;
+	if (airbus_angle >= 360.0f) airbus_angle = 0.1f;
+	model = glm::mat4(1.0f);
+	model = glm::rotate(model, airbus_angle*to_radians, glm::vec3(0.0f, 1.0f, 0.0f));
+
+	model = glm::translate(model, glm::vec3(3.0f, 2.0f, 1.0f));
+	model = glm::scale(model, glm::vec3(0.0005f, 0.0005f, 0.0005f));
+	model = glm::rotate(model, -90.0f*to_radians, glm::vec3(1.0f, 0.0f, 0.0f));
+	model = glm::rotate(model, -38.0f*to_radians, glm::vec3(0.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
+	shiny_material.use(uniform_specular_intensity, uniform_shininess);
+	a380.render();
+}
+
+void directional_shadow_map_pass(directional_light* light)
+{
+	directional_shadow_shader->use();
+	
+	glViewport(0, 0, light->get_shadow_map()->get_width(), light->get_shadow_map()->get_height());
+
+	light->get_shadow_map()->write();
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	uniform_model = directional_shadow_shader->get_model_location();
+
+	auto tmp = light->calculate_light_transform();
+	directional_shadow_shader->set_directional_light_transform(&tmp);
+	
+	render_scene();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+#include <iostream>
+void render_pass(glm::mat4 view_matrix, glm::mat4 projection_matrix)
+{
+	shader_list[0]->use();
+
+	uniform_model = shader_list[0]->get_model_location();
+	uniform_projection = shader_list[0]->get_projection_location();
+	uniform_view = shader_list[0]->get_view_location();		
+	uinform_eye_position = shader_list[0]->get_eye_position_location();
+	uniform_specular_intensity = shader_list[0]->get_specular_intensity_location();
+	uniform_shininess = shader_list[0]->get_shininess_location(); 
+
+	glViewport(0, 0, 1366, 768);
+	// Clear window
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glUniformMatrix4fv(uniform_projection, 1, GL_FALSE, glm::value_ptr(projection_matrix));	
+	glUniformMatrix4fv(uniform_view, 1, GL_FALSE, glm::value_ptr(view_matrix));	
+	glUniform3f(uinform_eye_position, c.get_camera_position().x, c.get_camera_position().y, c.get_camera_position().z);
+
+	shader_list[0]->set_directional_light(&main_light);
+	shader_list[0]->set_point_lights(point_lights, point_light_count);
+	shader_list[0]->set_spot_lights(spot_lights, spot_light_count);
+	auto tmp = main_light.calculate_light_transform();
+	shader_list[0]->set_directional_light_transform(&tmp);
+
+	main_light.get_shadow_map()->read(GL_TEXTURE1);
+	shader_list[0]->set_texture(0);
+	shader_list[0]->set_directional_shadow_map(1);
+
+	glm::vec3 a_bit_lower = c.get_camera_position();
+	a_bit_lower.y -= 0.3f;
+	spot_lights[0].set_flash(a_bit_lower, c.get_camera_direction());
+
+	render_scene();
 }
 
 int main()
@@ -131,28 +272,18 @@ int main()
 	window main_window(1366, 768);
 	main_window.initialize();
 
-	camera c(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f, 5.0f, 0.2f);
-
-	material shiny_material(4.0f, 256);
-	material dull_material(0.3f, 4);
-
-	model xwing("models/xwing/x-wing.obj");
-
-	texture brick("textures/brick.png");
 	brick.load_with_alpha();
-	texture dirt("textures/dirt.png");
 	dirt.load_with_alpha();
-	texture plain("textures/plain.png");
 	plain.load_with_alpha();
+	xwing.load("models/xwing/x-wing.obj");
+	a380.load("models/A380/A380.obj");
 
-	directional_light main_light(
+	main_light = directional_light(
+		2048, 2048,
 		1.0f, 1.0f, 1.0f, 
-		0.0f, 0.0f, 
-		0.0f, 0.0f, -1.0f
+		0.01f, 0.2f, 
+		0.0f, -15.0f, -10.0f
 	);
-	
-	int point_light_count = 0;
-	point_light point_lights[MAX_POINT_LIGHTS];
 
 	point_lights[point_light_count++] = point_light(
 		0.0f, 0.0f, 1.0f, 
@@ -162,16 +293,14 @@ int main()
 	);
 	point_lights[point_light_count++] = point_light(
 		1.0f, 0.0f, 0.0f, 
-		0.0f, 0.1f,
+		0.5f, 0.1f,
 		-4.0f, 2.0f, 0.0f,
 		0.3f, 0.1f, 0.1f
 	);
-
-	int spot_light_count = 0;
-	spot_light spot_lights[MAX_SPOT_LIGHTS];
+	
 	spot_lights[spot_light_count++] = spot_light(
 		0.0f, 1.0f, 1.0f, 
-		0.0f, 2.0f,
+		5.0f, 4.0f,
 		0.0f, 0.0f, 0.0f,
 		0.0f, -1.0f, 0.0f,
 		0.3f, 0.2f, 0.1f,
@@ -186,19 +315,10 @@ int main()
 		20.0f
 	);
 
-
 	create_objects();
 	create_shaders();
 
-	GLuint uniform_projection = 0;
-	GLuint uniform_model = 0;
-	GLuint uniform_view = 0;
-	
-	GLuint uinform_eye_position = 0;
-	GLuint uniform_specular_intensity = 0;
-	GLuint uniform_shininess = 0; 
-
-	glm::mat4 projection = glm::perspective(45.0f, (GLfloat)main_window.get_buffer_width()/(GLfloat)main_window.get_buffer_height(), 0.1f, 100.0f);
+	projection = glm::perspective(45.0f, (GLfloat)main_window.get_buffer_width()/(GLfloat)main_window.get_buffer_height(), 0.1f, 100.0f);
 
 	// Loop until window closed
 	while (!main_window.get_should_close())
@@ -213,68 +333,8 @@ int main()
 		c.key_control(main_window.get_keys(), delta_time);
 		c.mouse_control(main_window.get_x_change(), main_window.get_y_change());
 
-		// Clear window
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		shader_list[0]->use();
-		uniform_model = shader_list[0]->get_model_location();
-		uniform_projection = shader_list[0]->get_projection_location();
-		uniform_view = shader_list[0]->get_view_location();
-		
-		uinform_eye_position = shader_list[0]->get_eye_position_location();
-		uniform_specular_intensity = shader_list[0]->get_specular_intensity_location();
-		uniform_shininess = shader_list[0]->get_shininess_location(); 
-
-		glm::vec3 a_bit_lower = c.get_camera_position();
-		a_bit_lower.y -= 0.3f;
-		spot_lights[0].set_flash(a_bit_lower, c.get_camera_direction());
-
-		shader_list[0]->set_directional_light(&main_light);
-		shader_list[0]->set_point_lights(point_lights, point_light_count);
-		shader_list[0]->set_spot_lights(spot_lights, spot_light_count);
-		// main_light.use_light(uniform_ambient_intensity, uniform_ambient_color, uniform_diffuse_intensity, uniform_diffuse_direction);
-
-
-
-		glUniformMatrix4fv(uniform_projection, 1, GL_FALSE, glm::value_ptr(projection));	
-		glUniformMatrix4fv(uniform_view, 1, GL_FALSE, glm::value_ptr(c.calculate_view_matrix()));	
-		glUniform3f(uinform_eye_position, c.get_camera_position().x, c.get_camera_position().y, c.get_camera_position().z);
-
-		glm::mat4 model(1.0f);
-		model = glm::translate(model, glm::vec3(0.0f, -1.0f, -2.5f));
-		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
-		// model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
-		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
-		brick.use();
-		shiny_material.use(uniform_specular_intensity, uniform_shininess);
-		mesh_list[0]->render();
-
-		model = glm::mat4(1.0f);
-		model = glm::translate(model, glm::vec3(0.0f, 4.0f, -2.5f));
-		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
-		// model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
-		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
-		dirt.use();
-		dull_material.use(uniform_specular_intensity, uniform_shininess);
-		mesh_list[1]->render();
-
-		model = glm::mat4(1.0f);
-		model = glm::translate(model, glm::vec3(0.0f, -2.0f, 0.0f));
-		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
-		// model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
-		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
-		dirt.use();
-		shiny_material.use(uniform_specular_intensity, uniform_shininess);
-		mesh_list[2]->render();
-
-		model = glm::mat4(1.0f);
-		model = glm::translate(model, glm::vec3(0.0f, -2.0f, 0.0f));
-		model = glm::scale(model, glm::vec3(0.001f, 0.001f, 0.001f));
-		model = glm::rotate(model, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f));
-		glUniformMatrix4fv(uniform_model, 1, GL_FALSE, glm::value_ptr(model));
-		shiny_material.use(uniform_specular_intensity, uniform_shininess);
-		xwing.render();
+		directional_shadow_map_pass(&main_light);
+		render_pass(c.calculate_view_matrix(), projection);
 
 		glUseProgram(0);
 

@@ -6,11 +6,12 @@ class point_light : public light
 {
 public: 
     point_light() = default;
-    point_light(GLfloat red, GLfloat green, GLfloat blue, 
+    point_light(/*GLuint shadow_width, GLuint shadow_height,*/
+     GLfloat red, GLfloat green, GLfloat blue, 
      GLfloat ambient_intensity, GLfloat diffuse_intensity, 
      GLfloat x_pos, GLfloat y_pos, GLfloat z_pos, 
      GLfloat constant, GLfloat linear, GLfloat exponent) 
-    : light(red, green, blue, ambient_intensity, diffuse_intensity),
+    : light(/*shadow_width, shadow_height,*/1024, 1024, red, green, blue, ambient_intensity, diffuse_intensity),
       m_position{glm::vec3(x_pos, y_pos, z_pos)}, m_constant(constant), m_linear(linear), m_exponent(exponent)
     {}
     ~point_light() = default;

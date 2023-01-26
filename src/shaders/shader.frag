@@ -4,6 +4,7 @@ in vec4 vertex_color;
 in vec2 tex_coordinate;
 in vec3 normal;
 in vec3 frag_pos;
+in vec4 directional_light_space_pos;
 
 out vec4 color;
 
@@ -53,12 +54,43 @@ uniform point_light point_lights[MAX_POINT_LIGHTS];
 uniform spot_light spot_lights[MAX_SPOT_LIGHTS];
 
 uniform sampler2D this_texture;
+uniform sampler2D directional_shadow_map;
+
 uniform material m;
 
 uniform vec3 eye_position;
 
 
-vec4 calculate_light_by_direction(light base_light, vec3 direction)
+float calculate_directional_shadow_factor(directional_light light)
+{
+	vec3 proj_coords = directional_light_space_pos.xyz / directional_light_space_pos.w;
+	proj_coords = (proj_coords * 0.5) + 0.5;
+	
+	float current = proj_coords.z;
+
+	vec3 n = normalize(normal);
+	vec3 light_dir = normalize(light.direction);
+
+	float bias = max(0.05 * (1 - dot(n, light_dir)), 0.005);
+
+	float shadow = 0.0;
+
+	vec2 texel_size = 1.0 / textureSize(directional_shadow_map, 0);
+	for (int x = -1 ; x <= 1 ; ++x){
+		for (int y = -1 ; y <= 1 ; ++y){
+			float pcf_depth = texture(directional_shadow_map, proj_coords.xy + vec2(x, y) * texel_size).r;
+			shadow += current-bias > pcf_depth ? 1.0 : 0.0;
+		}
+	}
+	shadow /= 9.0; // both for loops is -1 0 1 -> 3 itereations 3^2 = 9
+	if (proj_coords.z > 1.0){
+		shadow = 0.0;
+	}
+
+	return shadow;
+}
+
+vec4 calculate_light_by_direction(light base_light, vec3 direction, float shadow_factor)
 {
 	vec4 ambient_color = vec4(base_light.color, 1.0f) * base_light.ambient_intensity; 
 
@@ -78,7 +110,7 @@ vec4 calculate_light_by_direction(light base_light, vec3 direction)
 		}
 	}
 
-	return (ambient_color + diffuse_color + specular_color);
+	return (ambient_color + (1.0-shadow_factor) * (diffuse_color + specular_color));
 }
 
 vec4 calculate_single_point_light(point_light p_light)
@@ -87,7 +119,7 @@ vec4 calculate_single_point_light(point_light p_light)
 	float distance = length(direction);
 	direction = normalize(direction);
 
-	vec4 color = calculate_light_by_direction(p_light.base, direction);
+	vec4 color = calculate_light_by_direction(p_light.base, direction, 0.0);
 	float attenuation = p_light.exponent * distance*distance + 
 						p_light.linear * distance + 
 						p_light.constant;
@@ -97,7 +129,8 @@ vec4 calculate_single_point_light(point_light p_light)
 
 vec4 calculate_directional_light()
 {
-	return calculate_light_by_direction(direct_light.base, direct_light.direction);
+	float shadow_factor = calculate_directional_shadow_factor(direct_light);
+	return calculate_light_by_direction(direct_light.base, direct_light.direction, shadow_factor);
 }
 
 vec4 calculate_single_spot_light(spot_light s_light)

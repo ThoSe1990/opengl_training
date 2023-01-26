@@ -106,10 +106,8 @@ private:
         if (key >= 0 && key < 1024) {
             if (action == GLFW_PRESS) {
                 this_window->m_keys[key] = true;
-                printf("pressed: %d\n", key);
             } else if (action == GLFW_RELEASE) {
                 this_window->m_keys[key] = false;
-                printf("released: %d\n", key);
             }
         }
     }
