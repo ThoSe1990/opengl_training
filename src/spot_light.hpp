@@ -6,13 +6,15 @@ class spot_light : public point_light
 {
 public:
     spot_light() : point_light() {}
-    spot_light(GLfloat red, GLfloat green, GLfloat blue, 
+    spot_light(GLuint shadow_width, GLuint shadow_height,
+     GLfloat near, GLfloat far,
+     GLfloat red, GLfloat green, GLfloat blue, 
      GLfloat ambient_intensity, GLfloat diffuse_intensity, 
      GLfloat x_pos, GLfloat y_pos, GLfloat z_pos, 
      GLfloat x_dir, GLfloat y_dir, GLfloat z_dir, 
      GLfloat constant, GLfloat linear, GLfloat exponent, 
      GLfloat edge) 
-    : point_light(red, green, blue, ambient_intensity, diffuse_intensity, x_pos, y_pos, z_pos, constant, linear, exponent),
+    : point_light(shadow_width, shadow_height, near, far, red, green, blue, ambient_intensity, diffuse_intensity, x_pos, y_pos, z_pos, constant, linear, exponent),
       m_direction{glm::normalize(glm::vec3(x_dir, y_dir, z_dir))},
     //   m_edge{edge},
       m_proc_edge{cosf(glm::radians(edge))}

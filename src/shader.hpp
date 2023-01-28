@@ -22,17 +22,26 @@ public:
         clear();
     }
 
-    GLuint get_projection_location() { return m_projection; }
-    GLuint get_model_location() { return m_model; }
-    GLuint get_view_location() { return m_view; }
-    GLuint get_ambient_intensity_location() { return m_uniform_directional_light.uniform_ambient_intensity; }
-    GLuint get_ambient_color_location() { return m_uniform_directional_light.uniform_color; }
-    GLuint get_diffuse_intensity_location() { return m_uniform_directional_light.uniform_diffuse_intensity; }
-    GLuint get_diffuse_direction_location() { return m_uniform_directional_light.uniform_direction; }
-    GLuint get_specular_intensity_location() { return m_uniform_specular_intensity; }
-    GLuint get_shininess_location() { return m_uniform_shininess; }
-    GLuint get_eye_position_location() { return m_uniform_eye_position; }
+    GLuint get_projection_location() const { return m_projection; }
+    GLuint get_model_location() const { return m_model; }
+    GLuint get_view_location() const { return m_view; }
+    GLuint get_ambient_intensity_location() const { return m_uniform_directional_light.uniform_ambient_intensity; }
+    GLuint get_ambient_color_location() const { return m_uniform_directional_light.uniform_color; }
+    GLuint get_diffuse_intensity_location() const { return m_uniform_directional_light.uniform_diffuse_intensity; }
+    GLuint get_diffuse_direction_location() const { return m_uniform_directional_light.uniform_direction; }
+    GLuint get_specular_intensity_location() const { return m_uniform_specular_intensity; }
+    GLuint get_shininess_location() const { return m_uniform_shininess; }
+    GLuint get_eye_position_location() const { return m_uniform_eye_position; }
+    GLuint get_omni_light_pos_location() const { return m_uniform_omni_light_pos; }
+    GLuint get_far_plane_location() const { return m_uniform_far_plane; }
 
+    void set_omni_light_matrices(std::vector<glm::mat4> light_matrices)
+    {   
+        // 6 sides of a cube
+        for (std::size_t i = 0 ; i < 6 ; i++) {
+            glUniformMatrix4fv(m_uniform_light_matrices[i], 1, GL_FALSE, glm::value_ptr(light_matrices[i]));
+        }
+    }
     void set_directional_light(directional_light* dl)
     {
         dl->use_light(
@@ -113,8 +122,6 @@ public:
         m_projection = 0;
     }
 
-private:
-    friend shader* make_shader(const char* vertex_code, const char* fragment_code);
     void compile(const char* vertex_code, const char* fragment_code)
     {
         m_id = glCreateProgram();
@@ -126,6 +133,25 @@ private:
         add(m_id, vertex_code, GL_VERTEX_SHADER);
         add(m_id, fragment_code, GL_FRAGMENT_SHADER);
 
+        compile_program();
+    }
+
+    void compile(const char* vertex_code, const char* fragment_code, const char* geometry_code)
+    {
+        m_id = glCreateProgram();
+        if(!m_id) {
+            printf("Error creating shader program!\n"); 
+            exit(1);
+        }
+
+        add(m_id, vertex_code, GL_VERTEX_SHADER);
+        add(m_id, geometry_code, GL_GEOMETRY_SHADER);
+        add(m_id, fragment_code, GL_FRAGMENT_SHADER);
+    }
+
+private:
+    void compile_program()
+    {
         GLint result = 0;
         GLchar log[1024] = {0};
 
@@ -216,6 +242,16 @@ private:
         m_uniform_texture = glGetUniformLocation(m_id, "this_texture");
         m_uniform_directional_light_transform = glGetUniformLocation(m_id, "directional_light_transform");
         m_uniform_directional_shadow_map = glGetUniformLocation(m_id, "directional_shadow_map");
+
+        m_uniform_omni_light_pos = glGetUniformLocation(m_id, "light_pos");
+        m_uniform_far_plane = glGetUniformLocation(m_id, "far_plane");
+
+        // array size is 6 --> cube 6 sides .. 
+        for (int i = 0 ; i < 6 ; i++) {
+            char location_buffer[100] = {'\0'};
+            snprintf(location_buffer, sizeof(location_buffer), "light_matrices[%i]", i);
+            m_uniform_light_matrices[i] = glGetUniformLocation(m_id, location_buffer);
+        }
     }
 
     void add(GLuint program, const char* shader_code, GLenum type)
@@ -295,9 +331,14 @@ private:
     GLuint m_uniform_specular_intensity{0};
     GLuint m_uniform_shininess{0};
 
-    GLuint m_uniform_texture;
-    GLuint m_uniform_directional_light_transform;
-    GLuint m_uniform_directional_shadow_map;
+    GLuint m_uniform_texture{0};
+    GLuint m_uniform_directional_light_transform{0};
+    GLuint m_uniform_directional_shadow_map{0};
+
+    GLuint m_uniform_omni_light_pos{0};
+    GLuint m_uniform_far_plane{0};
+
+    GLuint m_uniform_light_matrices[6];
 };
 
 
@@ -330,4 +371,16 @@ shader* make_shader(const char* vertex_code, const char* fragment_code)
 shader* make_shader_from_file(const char* vertex_file, const char* fragment_file)
 {
     return make_shader(read_file(vertex_file).c_str(), read_file(fragment_file).c_str());
+}
+
+
+shader* make_shader(const char* vertex_code, const char* fragment_code, const char* geometry_code)
+{
+    shader* s = new shader();
+    s->compile(vertex_code, fragment_code, geometry_code);
+    return s;    
+}
+shader* make_shader_from_file(const char* vertex_file, const char* fragment_file, const char* geometry_file)
+{
+    return make_shader(read_file(vertex_file).c_str(), read_file(fragment_file).c_str(), read_file(geometry_file).c_str());
 }
