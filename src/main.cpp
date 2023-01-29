@@ -12,8 +12,23 @@
 #include <glm\gtc\matrix_transform.hpp>
 #include <glm\gtc\type_ptr.hpp>
 
+#include <stb_image.h>
+
 static constexpr std::size_t MAX_POINT_LIGHTS = 3;
 static constexpr std::size_t MAX_SPOT_LIGHTS = 3;
+
+static const char* vertex_shader_file = "src/shaders/shader.vert";
+static const char* fragment_shader_file = "src/shaders/shader.frag";
+
+static const char* vertex_direct_shadow_file = "src/shaders/directional_shadow_map.vert";
+static const char* fragment_direct_shadow_file = "src/shaders/directional_shadow_map.frag";
+
+static const char* vertex_omni_shadow_file = "src/shaders/omni_shadow_map.vert";
+static const char* geometry_omni_shadow_file = "src/shaders/omni_shadow_map.geom";
+static const char* fragment_omni_shadow_file = "src/shaders/omni_shadow_map.frag";
+
+static const char* vertex_skybox_file = "src/shaders/skybox.vert";
+static const char* fragment_skybox_file = "src/shaders/skybox.frag";
 
 #include "window.hpp"
 #include "mesh.hpp"
@@ -24,6 +39,7 @@ static constexpr std::size_t MAX_SPOT_LIGHTS = 3;
 #include "point_light.hpp"
 #include "spot_light.hpp"
 #include "material.hpp"
+#include "skybox.hpp"
 
 #include "assimp/Importer.hpp"
 
@@ -35,6 +51,8 @@ std::vector<mesh*> mesh_list;
 std::vector<shader*> shader_list;
 shader* directional_shadow_shader;
 shader* omni_shadow_shader;
+
+skybox* sky_box;
 
 GLfloat delta_time = 0.0f;
 GLfloat last_time = 0.0f;
@@ -70,16 +88,6 @@ camera c(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f,
 directional_light main_light;
 
 glm::mat4 projection;
-
-static const char* vertex_shader_file = "src/shaders/shader.vert";
-static const char* fragment_shader_file = "src/shaders/shader.frag";
-
-static const char* vertex_direct_shadow_file = "src/shaders/directional_shadow_map.vert";
-static const char* fragment_direct_shadow_file = "src/shaders/directional_shadow_map.frag";
-
-static const char* vertex_omni_shadow_file = "src/shaders/omni_shadow_map.vert";
-static const char* geometry_omni_shadow_file = "src/shaders/omni_shadow_map.geom";
-static const char* fragment_omni_shadow_file = "src/shaders/omni_shadow_map.frag";
 
 
 void calculate_average_normals(
@@ -265,6 +273,13 @@ void omni_shadow_map_pass(point_light* light)
 
 void render_pass(glm::mat4 projection_matrix, glm::mat4 view_matrix)
 {
+	glViewport(0, 0, 1366, 768);
+	// Clear window
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	sky_box->draw(view_matrix, projection_matrix);
+
 	shader_list[0]->use();
 
 	uniform_model = shader_list[0]->get_model_location();
@@ -273,11 +288,6 @@ void render_pass(glm::mat4 projection_matrix, glm::mat4 view_matrix)
 	uinform_eye_position = shader_list[0]->get_eye_position_location();
 	uniform_specular_intensity = shader_list[0]->get_specular_intensity_location();
 	uniform_shininess = shader_list[0]->get_shininess_location(); 
-
-	glViewport(0, 0, 1366, 768);
-	// Clear window
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glUniformMatrix4fv(uniform_projection, 1, GL_FALSE, glm::value_ptr(projection_matrix));	
 	glUniformMatrix4fv(uniform_view, 1, GL_FALSE, glm::value_ptr(view_matrix));	
@@ -331,9 +341,9 @@ int main()
 
 	main_light = directional_light(
 		2048, 2048,
-		1.0f, 0.0f, 0.0f, 
-		0.0001f, 0.002f, 
-		0.0f, -15.0f, -10.0f
+		1.0f, 0.3f, 0.0f, 
+		0.1, 0.8f, 
+		-10.0f, -12.0f, 18.5f
 	);
 
 	point_lights[point_light_count++] = point_light(
@@ -345,7 +355,7 @@ int main()
 	);
 	point_lights[point_light_count++] = point_light(
 		1024, 1024, 0.01f, 100.0f,
-		0.0f, 0.0f, 1.0f, 
+		1.0f, 0.0f, 0.0f, 
 		0.0f, 0.04f,
 		2.0f, 2.0f, 0.0f,
 		0.3f, 0.01f, 0.01f
@@ -361,13 +371,23 @@ int main()
 	);
 	spot_lights[spot_light_count++] = spot_light(
 		1024, 1024, 0.01f, 100.0f,
-		0.0f, 0.0f, 1.0f, 
+		1.0f, 0.53f, 0.0f, 
 		0.0f, 1.0f,
 		0.0f, -1.5f, 0.0f,
 		-100.0f, -1.0f, 0.0f,
 		1.3f, 0.2f, 0.1f,
 		20.0f
 	);
+
+	std::vector<std::string> skybox_faces;
+	skybox_faces.push_back("skybox/cupertin-lake_rt.tga");
+	skybox_faces.push_back("skybox/cupertin-lake_lf.tga");
+	skybox_faces.push_back("skybox/cupertin-lake_up.tga");
+	skybox_faces.push_back("skybox/cupertin-lake_dn.tga");
+	skybox_faces.push_back("skybox/cupertin-lake_bk.tga");
+	skybox_faces.push_back("skybox/cupertin-lake_ft.tga");
+
+	sky_box = new skybox(skybox_faces);
 
 	create_objects();
 	create_shaders();
