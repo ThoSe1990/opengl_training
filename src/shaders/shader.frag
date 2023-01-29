@@ -40,6 +40,12 @@ struct spot_light
 	float edge;
 };
 
+struct omni_shadow_map
+{
+	samplerCube shadow_map;
+	float far_plane;
+};
+
 struct material
 {
 	float specular_intensity;
@@ -55,11 +61,20 @@ uniform spot_light spot_lights[MAX_SPOT_LIGHTS];
 
 uniform sampler2D this_texture;
 uniform sampler2D directional_shadow_map;
+uniform omni_shadow_map omni_shadows[MAX_POINT_LIGHTS + MAX_SPOT_LIGHTS];
 
 uniform material m;
 
 uniform vec3 eye_position;
 
+vec3 sample_offset_direction[20] = vec3[] 
+(
+	vec3(1, 1, 1), vec3(1, -1, 1), vec3(-1, -1, 1), vec3(-1, 1, 1),
+	vec3(1, 1, -1), vec3(1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1), 
+	vec3(1, 1, 0), vec3(1, -1, 0), vec3(-1, -1, 0), vec3(-1, 1, 0),
+	vec3(1, 0, 1), vec3(-1, 0, 1), vec3(1, 0, -1), vec3(-1, 0, -1),
+	vec3(0, 1, 1), vec3(0, -1, 1), vec3(0, -1, -1), vec3(0, 1, -1)
+);
 
 float calculate_directional_shadow_factor(directional_light light)
 {
@@ -90,6 +105,30 @@ float calculate_directional_shadow_factor(directional_light light)
 	return shadow;
 }
 
+float calculate_omni_shadow_factor(point_light light, int shadow_index)
+{
+	vec3 frag_to_light = frag_pos - light.position;
+	float current = length(frag_to_light);
+
+	float shadow = 0.0;
+	float bias = 0.05;
+	int samples = 20;
+
+	float view_distance = length(eye_position - frag_pos);
+	float disk_radius = (1.0 + (view_distance/omni_shadows[shadow_index].far_plane)) / 25.0;
+
+	for (int i = 0 ; i < samples ; i++) {
+		float closest = texture(omni_shadows[shadow_index].shadow_map, frag_to_light + sample_offset_direction[i]*disk_radius).r;
+		closest *= omni_shadows[shadow_index].far_plane;
+		if (current - bias > closest){
+			shadow += 1.0;
+		}
+	}
+
+	shadow /= float(samples);
+	return shadow;
+}
+
 vec4 calculate_light_by_direction(light base_light, vec3 direction, float shadow_factor)
 {
 	vec4 ambient_color = vec4(base_light.color, 1.0f) * base_light.ambient_intensity; 
@@ -113,13 +152,15 @@ vec4 calculate_light_by_direction(light base_light, vec3 direction, float shadow
 	return (ambient_color + (1.0-shadow_factor) * (diffuse_color + specular_color));
 }
 
-vec4 calculate_single_point_light(point_light p_light)
+vec4 calculate_single_point_light(point_light p_light, int shadow_index)
 {
 	vec3 direction = frag_pos - p_light.position;
 	float distance = length(direction);
 	direction = normalize(direction);
 
-	vec4 color = calculate_light_by_direction(p_light.base, direction, 0.0);
+	float shadow_factor = calculate_omni_shadow_factor(p_light, shadow_index);
+
+	vec4 color = calculate_light_by_direction(p_light.base, direction, shadow_factor);
 	float attenuation = p_light.exponent * distance*distance + 
 						p_light.linear * distance + 
 						p_light.constant;
@@ -133,14 +174,14 @@ vec4 calculate_directional_light()
 	return calculate_light_by_direction(direct_light.base, direct_light.direction, shadow_factor);
 }
 
-vec4 calculate_single_spot_light(spot_light s_light)
+vec4 calculate_single_spot_light(spot_light s_light, int shadow_index)
 {
 	vec3 ray_direction = normalize(frag_pos - s_light.base.position);
 	float spot_light_factor = dot(ray_direction, s_light.direction);
 
 	if (spot_light_factor > s_light.edge)
 	{
-		vec4 color = calculate_single_point_light(s_light.base);
+		vec4 color = calculate_single_point_light(s_light.base, shadow_index);
 		return color * (1.0f - (1.0f-spot_light_factor)*(1.0f/(1.0f - s_light.edge)));
 	} 
 	else
@@ -153,7 +194,7 @@ vec4 calculate_spot_lights()
 	vec4 total_color = vec4(0,0,0,0);
 	for (int i = 0 ; i < spot_light_count ; i++) 
 	{	
-		total_color += calculate_single_spot_light(spot_lights[i]);
+		total_color += calculate_single_spot_light(spot_lights[i], i+point_light_count);
 	}
 
 	return total_color;
@@ -165,7 +206,7 @@ vec4 calculate_point_lights()
 
 	for (int i = 0 ; i < point_light_count ; i++) 
 	{	
-		total_color += calculate_single_point_light(point_lights[i]);
+		total_color += calculate_single_point_light(point_lights[i], i);
 	}
 
 	return total_color;

@@ -20,14 +20,26 @@ public:
       m_proc_edge{cosf(glm::radians(edge))}
     {}
 
+    void toggle() 
+    {
+        m_is_on = !m_is_on;
+    }
+
     void use_light(GLuint ambient_intensity_location, GLuint ambient_color_location, 
         GLuint diffuse_intensity_location, GLuint position_location, GLuint direction_location,
         GLuint constant_location, GLuint linear_location, GLuint exponent_location,
         GLuint edge_location)
     {
         glUniform3f(ambient_color_location, m_color.x, m_color.y, m_color.z);
-        glUniform1f(ambient_intensity_location, m_ambient_intensity);
-        glUniform1f(diffuse_intensity_location, m_diffuse_intensity);
+
+        if (m_is_on) {
+            glUniform1f(ambient_intensity_location, m_ambient_intensity);
+            glUniform1f(diffuse_intensity_location, m_diffuse_intensity);
+        } else {
+            glUniform1f(ambient_intensity_location, 0.0f);
+            glUniform1f(diffuse_intensity_location, 0.0f);
+        }
+
 
         glUniform3f(position_location, m_position.x, m_position.y, m_position.z);
         glUniform1f(constant_location, m_constant);
@@ -48,4 +60,5 @@ private:
     glm::vec3 m_direction{glm::vec3(0.0f, -1.0f, 0.0f)};
     // GLfloat m_edge{0.0f};
     GLfloat m_proc_edge{0.0f};
+    bool m_is_on{true};
 };

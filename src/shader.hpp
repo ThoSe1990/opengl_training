@@ -51,7 +51,7 @@ public:
             m_uniform_directional_light.uniform_direction
         );
     }
-    void set_point_lights(point_light* point_lights, unsigned int light_count)
+    void set_point_lights(point_light* point_lights, unsigned int light_count, unsigned int texture_unit, unsigned int offset)
     {
         if (light_count > MAX_POINT_LIGHTS) { 
             light_count = MAX_POINT_LIGHTS; 
@@ -69,9 +69,13 @@ public:
                 m_uniform_point_light[i].uniform_linear,
                 m_uniform_point_light[i].uniform_exponent
             );
+
+            point_lights[i].get_shadow_map()->read(GL_TEXTURE0 + texture_unit + i);
+            glUniform1i(m_uniform_omni_shadow_map[i + offset].shadow_map, texture_unit + i);
+            glUniform1f(m_uniform_omni_shadow_map[i + offset].far_plane, point_lights[i].get_far_plane());
         }
     }
-    void set_spot_lights(spot_light* spot_lights, unsigned int light_count)
+    void set_spot_lights(spot_light* spot_lights, unsigned int light_count, unsigned int texture_unit, unsigned int offset)
     {
         if (light_count > MAX_SPOT_LIGHTS) { 
             light_count = MAX_SPOT_LIGHTS; 
@@ -91,6 +95,10 @@ public:
                 m_uniform_spot_light[i].uniform_exponent,
                 m_uniform_spot_light[i].uniform_edge
             );
+
+            spot_lights[i].get_shadow_map()->read(GL_TEXTURE0 + texture_unit + i);
+            glUniform1i(m_uniform_omni_shadow_map[i + offset].shadow_map, texture_unit + i);
+            glUniform1f(m_uniform_omni_shadow_map[i + offset].far_plane, spot_lights[i].get_far_plane());
         }
     }
 
@@ -147,6 +155,21 @@ public:
         add(m_id, vertex_code, GL_VERTEX_SHADER);
         add(m_id, geometry_code, GL_GEOMETRY_SHADER);
         add(m_id, fragment_code, GL_FRAGMENT_SHADER);
+
+        compile_program();
+    }
+
+    void validate() 
+    {
+        GLint result = 0;
+        GLchar log[1024] = {0};
+        glValidateProgram(m_id);
+        glGetProgramiv(m_id, GL_VALIDATE_STATUS, &result);
+        if (!result) {
+            glGetProgramInfoLog(m_id, sizeof(log), NULL, log);
+            printf("Error validating program! %s\n", log);
+            return;
+        }
     }
 
 private:
@@ -160,14 +183,6 @@ private:
         if (!result) {
             glGetProgramInfoLog(m_id, sizeof(log), NULL, log);
             printf("Error linking program! %s\n", log);
-            return;
-        }
-
-        glValidateProgram(m_id);
-        glGetProgramiv(m_id, GL_VALIDATE_STATUS, &result);
-        if (!result) {
-            glGetProgramInfoLog(m_id, sizeof(log), NULL, log);
-            printf("Error validating program! %s\n", log);
             return;
         }
 
@@ -239,8 +254,19 @@ private:
             m_uniform_spot_light[i].uniform_edge = glGetUniformLocation(m_id, location_buffer);
         }
 
-        m_uniform_texture = glGetUniformLocation(m_id, "this_texture");
+
+        for (int i = 0 ; i < MAX_POINT_LIGHTS+MAX_SPOT_LIGHTS ; i++) {
+            char location_buffer[100] = {'\0'};
+
+            snprintf(location_buffer, sizeof(location_buffer), "omni_shadows[%i].shadow_map", i);
+            m_uniform_omni_shadow_map[i].shadow_map = glGetUniformLocation(m_id, location_buffer);
+
+            snprintf(location_buffer, sizeof(location_buffer), "omni_shadows[%i].far_plane", i);
+            m_uniform_omni_shadow_map[i].far_plane = glGetUniformLocation(m_id, location_buffer);
+        }
+
         m_uniform_directional_light_transform = glGetUniformLocation(m_id, "directional_light_transform");
+        m_uniform_texture = glGetUniformLocation(m_id, "this_texture");
         m_uniform_directional_shadow_map = glGetUniformLocation(m_id, "directional_shadow_map");
 
         m_uniform_omni_light_pos = glGetUniformLocation(m_id, "light_pos");
@@ -249,9 +275,11 @@ private:
         // array size is 6 --> cube 6 sides .. 
         for (int i = 0 ; i < 6 ; i++) {
             char location_buffer[100] = {'\0'};
+
             snprintf(location_buffer, sizeof(location_buffer), "light_matrices[%i]", i);
             m_uniform_light_matrices[i] = glGetUniformLocation(m_id, location_buffer);
         }
+
     }
 
     void add(GLuint program, const char* shader_code, GLenum type)
@@ -321,6 +349,10 @@ private:
     } m_uniform_spot_light[MAX_SPOT_LIGHTS];
     GLuint m_uniform_spot_light_count{0};
 
+    struct {
+        GLuint shadow_map;
+        GLuint far_plane;
+    } m_uniform_omni_shadow_map[MAX_POINT_LIGHTS + MAX_SPOT_LIGHTS];
 
     GLuint m_id{0};
     GLuint m_projection{0};

@@ -10,7 +10,7 @@ out vec4 frag_pos;
 void main()
 {   
     // 6 sides of a cube 
-    for (int face = 0 ; face < 6 ; face++)
+    for (int face = 0 ; face < 6 ; ++face)
     {
         gl_Layer = face;
         // 3 points of a triangle

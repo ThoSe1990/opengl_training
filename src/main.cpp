@@ -233,6 +233,7 @@ void directional_shadow_map_pass(directional_light* light)
 	auto tmp = light->calculate_light_transform();
 	directional_shadow_shader->set_directional_light_transform(&tmp);
 	
+	directional_shadow_shader->validate();
 	render_scene();
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -240,26 +241,29 @@ void directional_shadow_map_pass(directional_light* light)
 
 void omni_shadow_map_pass(point_light* light)
 {
-	omni_shadow_shader->use();
-	
 	glViewport(0, 0, light->get_shadow_map()->get_width(), light->get_shadow_map()->get_height());
-	light->get_shadow_map()->write();
-	glClear(GL_DEPTH_BUFFER_BIT);
+	
+	omni_shadow_shader->use();
 
 	uniform_model = omni_shadow_shader->get_model_location();
 	uniform_omni_light_pos = omni_shadow_shader->get_omni_light_pos_location();
 	uniform_far_plane = omni_shadow_shader->get_far_plane_location();
 
+	light->get_shadow_map()->write();
+
+	glClear(GL_DEPTH_BUFFER_BIT);
+
 	glUniform3f(uniform_omni_light_pos, light->get_position().x, light->get_position().y, light->get_position().z);
 	glUniform1f(uniform_far_plane, light->get_far_plane());
 	omni_shadow_shader->set_omni_light_matrices(light->calculate_light_transform());
 
+	omni_shadow_shader->validate();
 	render_scene();
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void render_pass(glm::mat4 view_matrix, glm::mat4 projection_matrix)
+void render_pass(glm::mat4 projection_matrix, glm::mat4 view_matrix)
 {
 	shader_list[0]->use();
 
@@ -280,19 +284,36 @@ void render_pass(glm::mat4 view_matrix, glm::mat4 projection_matrix)
 	glUniform3f(uinform_eye_position, c.get_camera_position().x, c.get_camera_position().y, c.get_camera_position().z);
 
 	shader_list[0]->set_directional_light(&main_light);
-	shader_list[0]->set_point_lights(point_lights, point_light_count);
-	shader_list[0]->set_spot_lights(spot_lights, spot_light_count);
+
+	/*
+	set point lights before spot lights, because things get mixed up in this loop, see loop in shader.frag
+
+	vec4 calculate_spot_lights() {
+	...
+	total_color += calculate_single_spot_light(spot_lights[i], i+point_light_count); <-- this i+point_light_count represents the shadow index
+	...
+
+	vec4 calculate_point_lights() {
+	...
+	total_color += calculate_single_point_light(point_lights[i], i); <-- this i represents the shadow index
+	...	
+	*/
+	 
+	shader_list[0]->set_point_lights(point_lights, point_light_count, 3, 0);
+	shader_list[0]->set_spot_lights(spot_lights, spot_light_count, 3 + point_light_count, point_light_count);
 	auto tmp = main_light.calculate_light_transform();
 	shader_list[0]->set_directional_light_transform(&tmp);
 
-	main_light.get_shadow_map()->read(GL_TEXTURE1);
-	shader_list[0]->set_texture(0);
-	shader_list[0]->set_directional_shadow_map(1);
+	main_light.get_shadow_map()->read(GL_TEXTURE2);
+	
+	shader_list[0]->set_texture(1);
+	shader_list[0]->set_directional_shadow_map(2);
 
 	glm::vec3 a_bit_lower = c.get_camera_position();
 	a_bit_lower.y -= 0.3f;
 	spot_lights[0].set_flash(a_bit_lower, c.get_camera_direction());
 
+	shader_list[0]->validate();
 	render_scene();
 }
 
@@ -307,20 +328,14 @@ int main()
 	xwing.load("models/xwing/x-wing.obj");
 	a380.load("models/A380/A380.obj");
 
+
 	main_light = directional_light(
 		2048, 2048,
-		1.0f, 1.0f, 1.0f, 
-		0.01f, 0.2f, 
+		1.0f, 0.0f, 0.0f, 
+		0.0001f, 0.002f, 
 		0.0f, -15.0f, -10.0f
 	);
 
-	point_lights[point_light_count++] = point_light(
-		1024, 1024, 0.01f, 100.0f,
-		0.0f, 0.0f, 1.0f, 
-		0.0f, 0.1f,
-		0.0f, 0.0f, 0.0f,
-		0.3f, 0.2f, 0.1f
-	);
 	point_lights[point_light_count++] = point_light(
 		1024, 1024, 0.01f, 100.0f,
 		1.0f, 0.0f, 0.0f, 
@@ -328,11 +343,17 @@ int main()
 		-4.0f, 2.0f, 0.0f,
 		0.3f, 0.1f, 0.1f
 	);
-	
+	point_lights[point_light_count++] = point_light(
+		1024, 1024, 0.01f, 100.0f,
+		0.0f, 0.0f, 1.0f, 
+		0.0f, 0.04f,
+		2.0f, 2.0f, 0.0f,
+		0.3f, 0.01f, 0.01f
+	);	
 	spot_lights[spot_light_count++] = spot_light(
 		1024, 1024, 0.01f, 100.0f,
-		0.0f, 1.0f, 1.0f, 
-		5.0f, 4.0f,
+		1.0f, 0.0f, 1.0f, 
+		1.0f, 4.0f,
 		0.0f, 0.0f, 0.0f,
 		0.0f, -1.0f, 0.0f,
 		0.3f, 0.2f, 0.1f,
@@ -340,7 +361,7 @@ int main()
 	);
 	spot_lights[spot_light_count++] = spot_light(
 		1024, 1024, 0.01f, 100.0f,
-		1.0f, 1.0f, 1.0f, 
+		0.0f, 0.0f, 1.0f, 
 		0.0f, 1.0f,
 		0.0f, -1.5f, 0.0f,
 		-100.0f, -1.0f, 0.0f,
@@ -366,6 +387,11 @@ int main()
 		c.key_control(main_window.get_keys(), delta_time);
 		c.mouse_control(main_window.get_x_change(), main_window.get_y_change());
 
+		if(main_window.get_keys()[GLFW_KEY_L]) {
+			spot_lights[0].toggle();
+			main_window.get_keys()[GLFW_KEY_L] = false;
+		}
+
 		directional_shadow_map_pass(&main_light);
 		for (std::size_t i = 0 ; i < point_light_count; i++) {
 			omni_shadow_map_pass(&point_lights[i]);
@@ -373,7 +399,7 @@ int main()
 		for (std::size_t i = 0 ; i < spot_light_count ; i++) {
 			omni_shadow_map_pass(&spot_lights[i]);
 		}
-		render_pass(c.calculate_view_matrix(), projection);
+		render_pass(projection, c.calculate_view_matrix());
 
 		glUseProgram(0);
 
